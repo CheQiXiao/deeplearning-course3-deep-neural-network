@@ -54,7 +54,7 @@ def initialize_parameters_deep(layers_dims):
     parameters={}
     L=len(layers_dims)
     for l in range(1,L):
-        parameters["W"+str(l)]=np.random.rand(layers_dims[l],layers_dims[l-1])/np.sqrt(layers_dims[l-1]) #??????为什么要除以前一层节点的开平方
+        parameters["W"+str(l)]=np.random.rand(layers_dims[l],layers_dims[l - 1])/(layers_dims[l-1])#??????为什么要除以前一层节点的开平方
         parameters["b"+str(l)]=np.zeros((layers_dims[l],1))
 
         assert (parameters["W"+str(l)].shape==(layers_dims[l],layers_dims[l-1]))
@@ -264,15 +264,16 @@ def L_model_backward(AL,Y,caches):
     L=len(caches)  #也就是神经网络的深度
     m=AL.shape[1]
     Y=Y.reshape(AL.shape)
-    dAL=-(np.divide(Y,AL))+(np.divide(1-Y,1-AL))     #见笔记
+    dAL = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
+    #见笔记
 
     current_cache = caches[L-1]
     grads["dA" + str(L-1)], grads["dW" + str(L)], grads["db" + str(L)]=linear_activation_backward(dAL,current_cache,"sigmoid")#caches[cache[1] cache[2] cache[3]],caches的下标为0,1,2，caches[2]=cache[3]
 
     for l in reversed(range(L-1)):  #应该从后往前求
         current_cache=caches[l]
-        dA_prev_temp,dW_temp,db_temp=linear_activation_backward(grads["dA"+str(l+1)],current_cache,"relu")
-        grads["dA"+str(l+1)]=dA_prev_temp
+        dA_prev_temp,dW_temp,db_temp=linear_activation_backward(grads["dA" + str(l+1)], current_cache, "relu")
+        grads["dA"+str(l)]=dA_prev_temp
         grads["dW"+str(l+1)]=dW_temp
         grads["db"+str(l+1)]=db_temp
 
@@ -312,7 +313,7 @@ def update_parameters(parameters,grads,learning_rate):
 # print ("b2 = "+ str(parameters["b2"]))
 
 #两层神经网络训练模型
-def two_layer_model(X,Y,layer_dim,learning_rate=0.0075,num_itearation=3000,print_cost=False,isPlot=True):
+def two_layer_model(X,Y,layer_dim,learning_rate=0.7,num_itearation=3000,print_cost=False,isPlot=True):
     """
     实现一个两层的神经网络，【LINEAR->RELU】 -> 【LINEAR->SIGMOID】
     :param X:
@@ -398,11 +399,11 @@ test_x_=test_x_flatten/255
 test_y=test_set_y
 
 #训练数据集
-n_x=12288
-n_h=7
-n_y=1
-layers_dims=(n_x,n_h,n_y)
-parameters=two_layer_model(train_x,train_set_y,layers_dims,num_itearation=2500,print_cost=True,isPlot=True)
+# n_x=12288
+# n_h=7
+# n_y=1
+# layers_dims=(n_x,n_h,n_y)
+# parameters=two_layer_model(train_x,train_set_y,layers_dims,num_itearation=2500,print_cost=True,isPlot=True)
 
 #正式预测
 def predict(X,Y,parameters):
@@ -431,5 +432,80 @@ def predict(X,Y,parameters):
     print("准确度为："+str(float(np.sum(p==Y))/m))
 
     return p
-predictions_train=predict(train_x,train_y,parameters)
-predictions_test=predict(test_x_,test_y,parameters)
+# predictions_train=predict(train_x,train_y,parameters)
+# predictions_test=predict(test_x_,test_y,parameters)
+def L_layer_model(X,Y,layers_dims,learning_rate=0.0075,num_iterations=3000,print_cost=False,isPlot=True):
+    """
+     实现一个L层神经网络：[LINEAR-> RELU] *（L-1） - > LINEAR-> SIGMOID。
+    :param X:
+    :param Y:
+    :param layers_dims:层数的向量，维度为(n_y,n_h,···,n_h,n_y)
+    :param learning_rate:
+    :param num_iterations:
+    :param print_cost:
+    :param isPlot:
+    :return:
+    """
+    np.random.seed(1)
+    costs=[]
+    parameters=initialize_parameters_deep(layers_dims)
+    for i in range(0,num_iterations):
+        AL,caches=L_model_forward(X,parameters)
+        cost=compute_cost(AL,Y)
+        grads=L_model_backward(AL,Y,caches)
+        parameters=update_parameters(parameters,grads,learning_rate)
+        if i%100==0:
+            costs.append(cost)
+            if print_cost:
+                print("第",i,"次迭代，损失值为",np.squeeze(cost))
+    if isPlot:
+        plt.plot(np.squeeze(costs))
+        plt.ylabel("cost")
+        plt.xlabel("迭代次数")
+        plt.title("Learning rate ="+str(learning_rate))
+        plt.show()
+
+    return parameters
+
+
+train_set_x_orig,train_set_y,test_set_x_orig,test_set_y,classes=lr_utils.load_dataset()
+
+train_x_flatten = train_set_x_orig.reshape(train_set_x_orig.shape[0],-1).T
+test_x_flatten=test_set_x_orig.reshape(test_set_x_orig.shape[0],-1).T
+
+train_x=train_x_flatten/255
+train_y=train_set_y
+
+test_x=test_x_flatten/255
+test_y=test_set_y
+layers_dims=[12288,20,5,1]
+parameters=L_layer_model(train_x,train_y,layers_dims,num_iterations=1000,print_cost=True,isPlot=True)
+pred_train=predict(train_x,train_y,parameters)
+pred_test=predict(test_x,test_y,parameters)
+
+def print_mislabeled_images(classes,X,y,p):
+    """
+    
+    :param classes: 
+    :param X: 
+    :param y: 实际的标签
+    :param p: 预测
+    :return: 
+    """
+    a=p+y
+    mislabeled_indices=np.array(np.where(a==1))
+    plt.rcParams['figure.figsize'] = (40.0, 40.0)  # set default size of plots
+    num_images = len(mislabeled_indices[0])
+    for i in range(num_images):
+        index = mislabeled_indices[1][i]
+
+        plt.subplot(2, num_images, i + 1)
+        plt.imshow(X[:, index].reshape(64, 64, 3), interpolation='nearest')
+        plt.axis('off')
+        plt.title(
+            "Prediction: " + classes[int(p[0, index])].decode("utf-8") + " \n Class: " + classes[y[0, index]].decode(
+                "utf-8"))
+
+print_mislabeled_images(classes, test_x, test_y, pred_test)
+
+
